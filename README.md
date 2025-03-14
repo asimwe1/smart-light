@@ -17,7 +17,7 @@ This project implements an elegant MQTT-based light control system with a modern
 
 ## Screenshots
 
-![Smart Light Control UI](https://sjc.microlink.io/nn6PFu_GxpPT-nvWCrAcfOkibKC2kx7SkB-ZqQK0hCWkMGRLme4b_ff1OenjcDwThpaIwUexgKbVCjocXBAtow.jpeg)
+![Smart Light Control UI](image.png)
 *MQTT Broker Information*
 
 ## Prerequisites
