@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Smart Light Control</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/4.3.7/mqtt.min.js"></script>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+    }
+
+    body {
+      min-height: 100vh;
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(to bottom right, #0f172a, #1e293b);
+      color: white;
+      padding: 1rem;
+    }
+
+    .container {
+      background-color: rgba(30, 41, 59, 0.5);
+      backdrop-filter: blur(12px);
+      border-radius: 1rem;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+      padding: 2rem;
+      max-width: 28rem;
+      width: 100%;
+      border: 1px solid rgba(51, 65, 85, 0.5);
+      transition: all 0.3s ease;
+    }
+
+    .container:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 15px 30px rgba(15, 23, 42, 0.3);
+    }
+
+    h1 {
+      font-size: 1.875rem;
+      font-weight: 700;
+      margin-bottom: 2rem;
+      text-align: center;
+      background: linear-gradient(to right, #60a5fa, #a855f7);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
+
+    .light-bulb {
+      position: relative;
+      width: 8rem;
+      height: 8rem;
+      margin: 0 auto 2rem;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.5s ease;
+    }
+
+    .light-bulb.off {
+      background-color: #334155;
+    }
+
+    .light-bulb:not(.off) {
+      background-color: #fcd34d;
+    }
+
+    .light-glow {
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      transition: all 0.5s ease;
+      filter: blur(1rem);
+    }
+
+    .light-bulb:not(.off) .light-glow {
+      background-color: rgba(252, 211, 77, 0.5);
+      animation: pulse 2s infinite;
+    }
+
+    .light-bulb.off .light-glow {
+      background-color: transparent;
+    }
+
+    @keyframes pulse {
+      0% {
+        opacity: 0.5;
+      }
+      50% {
+        opacity: 0.8;
+      }
+      100% {
+        opacity: 0.5;
+      }
+    }
+
+    .light-icon {
+      position: relative;
+      z-index: 10;
+      width: 4rem;
+      height: 4rem;
+    }
+
+    .button-container {
+      display: flex;
+      gap: 1rem;
+      justify-content: center;
+      margin-bottom: 1.5rem;
+    }
+
+    button {
+      padding: 0.75rem 1.5rem;
+      border-radius: 9999px;
+      font-weight: 500;
+      border: none;
+      color: white;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+
+    button:disabled {
+      opacity: 0.5;
+      pointer-events: none;
+    }
+
+    #onButton {
+      background: linear-gradient(to right, #10b981, #059669);
+    }
+
+    #onButton:hover:not(:disabled) {
+      transform: scale(1.05);
+      box-shadow: 0 5px 15px rgba(16, 185, 129, 0.3);
+    }
+
+    #offButton {
+      background: linear-gradient(to right, #ef4444, #dc2626);
+    }
+
+    #offButton:hover:not(:disabled) {
+      transform: scale(1.05);
+      box-shadow: 0 5px 15px rgba(239, 68, 68, 0.3);
+    }
+
+    #status {
+      display: flex;
+      align-items: center;
+      padding: 1rem;
+      border-radius: 0.75rem;
+      background-color: rgba(51, 65, 85, 0.5);
+      border-left-width: 4px;
+      transition: all 0.3s ease;
+    }
+
+    #status.status-connected {
+      border-left-color: #10b981;
+    }
+
+    #status.status-error {
+      border-left-color: #ef4444;
+    }
+
+    #status.status-sending {
+      border-left-color: #f59e0b;
+      animation: pulse 1s infinite;
+    }
+
+    .status-icon {
+      margin-right: 0.75rem;
+      width: 1.25rem;
+      height: 1.25rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.25rem;
+    }
+
+    .broker-info {
+      margin-top: 1.5rem;
+      font-size: 0.75rem;
+      color: rgba(255, 255, 255, 0.6);
+      text-align: center;
+    }
+
+    .broker-info a {
+      color: #60a5fa;
+      text-decoration: none;
+    }
+
+    .broker-info a:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Smart Light Control</h1>
+    
+    <div id="lightBulb" class="light-bulb off">
+      <div class="light-glow"></div>
+      <svg class="light-icon" id="lightIcon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <!-- Moon icon by default -->
+        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" stroke="#94a3b8"></path>
+      </svg>
+    </div>
+    
+    <div class="button-container">
+      <button id="onButton" disabled>ON</button>
+      <button id="offButton" disabled>OFF</button>
+    </div>
+    
+    <div id="status" class="status-error">
+      <div class="status-icon">🔴</div>
+      <div>Status: Connecting to MQTT broker...</div>
+    </div>
+
+    <div class="broker-info">
+      Connected to <a href="https://broker.emqx.io" target="_blank">broker.emqx.io</a> | Topic: /student_group/light_control
+    </div>
+  </div>
+
+  <script>
+    // MQTT broker connection details
+    const broker = "broker.emqx.io";
+    const port = 8083;
+    const clientId = "web_client_" + Math.random().toString(16).substr(2, 8);
+    const topic = "/student_group/light_control";
+
+    // Get DOM elements
+    const lightBulb = document.getElementById("lightBulb");
+    const lightIcon = document.getElementById("lightIcon");
+    const statusElement = document.getElementById("status");
+    const onButton = document.getElementById("onButton");
+    const offButton = document.getElementById("offButton");
+    const statusIcon = document.querySelector(".status-icon");
+
+    const icons = {
+      sun: `<circle cx="12" cy="12" r="5" stroke="#b45309" fill="#fcd34d"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>`,
+      moon: `<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" stroke="#94a3b8"></path>`
+    };
+
+    const client = mqtt.connect(`ws://${broker}:${port}/mqtt`, {
+      clientId: clientId,
+    });
+
+    client.on("connect", () => {
+      updateStatus("Connected to MQTT broker", "connected");
+      enableButtons();
+    });
+
+    client.on("error", (error) => {
+      updateStatus("Connection error", "error");
+      disableButtons();
+      console.error("Connection error:", error);
+    });
+
+    client.on("disconnect", () => {
+      updateStatus("Disconnected from MQTT broker", "error");
+      disableButtons();
+    });
+
+    function updateStatus(message, type) {
+      statusElement.innerHTML = `<div class="status-icon">${getStatusEmoji(type)}</div><div>Status: ${message}</div>`;
+      statusElement.className = `status-${type}`;
+      
+      if (type === "error" || (type === "connected" && lightBulb.classList.contains("off"))) {
+        lightIcon.innerHTML = icons.moon;
+      }
+    }
+
+    function getStatusEmoji(type) {
+      switch (type) {
+        case "connected":
+          return "🟢";
+        case "error":
+          return "🔴";
+        case "sending":
+          return "🟡";
+        default:
+          return "⚪";
+      }
+    }
+
+    function disableButtons() {
+      onButton.disabled = true;
+      offButton.disabled = true;
+    }
+
+    function enableButtons() {
+      onButton.disabled = false;
+      offButton.disabled = false;
+    }
+
+    function sendCommand(command) {
+      updateStatus("Sending command...", "sending");
+      client.publish(topic, command, {}, (error) => {
+        if (error) {
+          updateStatus("Failed to send command", "error");
+        } else {
+          updateStatus(`Command sent: ${command}`, "connected");
+          if (command === "ON") {
+            lightBulb.classList.remove("off");
+            lightIcon.innerHTML = icons.sun;
+            onButton.disabled = true;
+            offButton.disabled = false;
+          } else {
+            lightBulb.classList.add("off");
+            lightIcon.innerHTML = icons.moon;
+            onButton.disabled = false;
+            offButton.disabled = true;
+          }
+        }
+      });
+    }
+
+    onButton.addEventListener("click", () => sendCommand("ON"));
+    offButton.addEventListener("click", () => sendCommand("OFF"));
+  </script>
+</body>
+</html>
+
